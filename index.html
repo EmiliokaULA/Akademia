@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mapa Interactivo de España</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 25px 80px rgba(0,0,0,0.4);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px;
+            text-align: center;
+        }
+        
+        h1 {
+            font-size: 2.8em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+        
+        .subtitle {
+            font-size: 1.2em;
+            opacity: 0.95;
+        }
+        
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            padding: 30px;
+            background: #f8f9fa;
+            border-bottom: 2px solid #e9ecef;
+            flex-wrap: wrap;
+        }
+        
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        label {
+            font-weight: 700;
+            color: #495057;
+            font-size: 0.95em;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        select {
+            padding: 12px 20px;
+            border: 2px solid #dee2e6;
+            border-radius: 10px;
+            font-size: 1em;
+            cursor: pointer;
+            background: white;
+            transition: all 0.3s;
+            min-width: 220px;
+            font-weight: 500;
+        }
+        
+        select:hover {
+            border-color: #667eea;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+        }
+        
+        select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.15);
+        }
+        
+        #map-container {
+            position: relative;
+            width: 100%;
+            height: 800px;
+            background: linear-gradient(to bottom, #e3f2fd 0%, #f5f5f5 100%);
+            overflow: hidden;
+        }
+        
+        #map {
+            width: 100%;
+            height: 100%;
+            cursor: grab;
+        }
+        
+        #map:active {
+            cursor: grabbing;
+        }
+        
+        .province {
+            stroke: #fff;
+            stroke-width: 1;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .province:hover {
+            stroke: #333;
+            stroke-width: 2.5;
+            filter: brightness(1.15) saturate(1.3);
+        }
+        
+        .ccaa-boundary {
+            fill: none;
+            stroke: #333;
+            stroke-width: 2.5;
+            stroke-linejoin: round;
+            pointer-events: none;
+            opacity: 0.7;
+        }
+        
+        .tooltip {
+            position: absolute;
+            padding: 16px 20px;
+            background: linear-gradient(135deg, rgba(0,0,0,0.95) 0%, rgba(30,30,30,0.95) 100%);
+            color: white;
+            border-radius: 12px;
+            pointer-events: none;
+            font-size: 14px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            max-width: 280px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .tooltip.visible {
+            opacity: 1;
+        }
+        
+        .tooltip-title {
+            font-weight: bold;
+            font-size: 18px;
+            margin-bottom: 10px;
+            border-bottom: 2px solid rgba(102, 126, 234, 0.6);
+            padding-bottom: 8px;
+        }
+        
+        .tooltip-value {
+            font-size: 20px;
+            color: #64b5f6;
+            margin-top: 6px;
+            font-weight: 600;
+        }
+        
+        .legend {
+            position: absolute;
+            bottom: 30px;
+            left: 30px;
+            background: rgba(255, 255, 255, 0.98);
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.25);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(0,0,0,0.1);
+            min-width: 200px;
+        }
+        
+        .legend-title {
+            font-weight: 700;
+            margin-bottom: 15px;
+            font-size: 15px;
+            color: #333;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin: 8px 0;
+            font-size: 13px;
+        }
+        
+        .legend-color {
+            width: 40px;
+            height: 20px;
+            border-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        
+        .zoom-controls {
+            position: absolute;
+            top: 30px;
+            right: 30px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .zoom-btn {
+            width: 44px;
+            height: 44px;
+            background: white;
+            border: 2px solid #dee2e6;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 24px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+            color: #495057;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+        
+        .zoom-btn:hover {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+            transform: scale(1.1);
+        }
+        
+        .zoom-btn:active {
+            transform: scale(0.95);
+        }
+        
+        .info-panel {
+            padding: 30px;
+            background: linear-gradient(135deg, #e3f2fd 0%, #f3e5f5 100%);
+            text-align: center;
+        }
+        
+        .info-box {
+            display: inline-block;
+            padding: 20px 30px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            color: #555;
+            font-size: 1.05em;
+            border-left: 4px solid #667eea;
+        }
+        
+        .info-box strong {
+            color: #667eea;
+        }
+        
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 1.5em;
+            color: #667eea;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🗺️ Mapa Interactivo de España</h1>
+            <p class="subtitle">Explora datos demográficos y económicos por provincias</p>
+        </div>
+        
+        <div class="controls">
+            <div class="control-group">
+                <label for="dataSelector">📊 Dato a visualizar</label>
+                <select id="dataSelector">
+                    <option value="mayores65">Población mayor de 65 años</option>
+                    <option value="poblacionTotal">Población total</option>
+                    <option value="densidad">Densidad de población (hab/km²)</option>
+                    <option value="renta">Renta media anual (€)</option>
+                </select>
+            </div>
+        </div>
+        
+        <div id="map-container">
+            <div class="loading">Cargando mapa geográfico...</div>
+            <svg id="map"></svg>
+            <div class="tooltip"></div>
+            <div class="legend">
+                <div class="legend-title">Escala de valores</div>
+                <div id="legend-content"></div>
+            </div>
+            <div class="zoom-controls">
+                <button class="zoom-btn" id="zoom-in" title="Acercar">+</button>
+                <button class="zoom-btn" id="zoom-out" title="Alejar">−</button>
+                <button class="zoom-btn" id="zoom-reset" title="Restablecer vista">⟲</button>
+            </div>
+        </div>
+        
+        <div class="info-panel">
+            <div class="info-box">
+                💡 <strong>Interactivo:</strong> Usa la rueda del ratón para hacer zoom, arrastra para mover el mapa y pasa el cursor sobre las provincias para ver los datos detallados.
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Datos por provincia
+        const provinciasDatos = {
+            "Madrid": { mayores65: 712000, poblacionTotal: 6779888, densidad: 847, renta: 32500 },
+            "Barcelona": { mayores65: 892000, poblacionTotal: 5743402, densidad: 734, renta: 31200 },
+            "Valencia": { mayores65: 432000, poblacionTotal: 2589312, densidad: 237, renta: 26800 },
+            "Sevilla": { mayores65: 312000, poblacionTotal: 1950219, densidad: 139, renta: 25100 },
+            "Alicante": { mayores65: 342000, poblacionTotal: 1879888, densidad: 323, renta: 24900 },
+            "Málaga": { mayores65: 285000, poblacionTotal: 1695651, densidad: 231, renta: 25600 },
+            "Murcia": { mayores65: 257000, poblacionTotal: 1511251, densidad: 133, renta: 24200 },
+            "Cádiz": { mayores65: 208000, poblacionTotal: 1240155, densidad: 167, renta: 23800 },
+            "Illes Balears": { mayores65: 178000, poblacionTotal: 1188220, densidad: 237, renta: 28900 },
+            "A Coruña": { mayores65: 205000, poblacionTotal: 1121344, densidad: 141, renta: 25900 },
+            "Bizkaia": { mayores65: 198000, poblacionTotal: 1152651, densidad: 516, renta: 33100 },
+            "Las Palmas": { mayores65: 178000, poblacionTotal: 1134567, densidad: 271, renta: 22400 },
+            "Santa Cruz de Tenerife": { mayores65: 167000, poblacionTotal: 1044887, densidad: 326, renta: 22800 },
+            "Asturias": { mayores65: 242000, poblacionTotal: 1011792, densidad: 96, renta: 26700 },
+            "Tarragona": { mayores65: 142000, poblacionTotal: 817239, densidad: 130, renta: 27400 },
+            "Zaragoza": { mayores65: 152000, poblacionTotal: 972528, densidad: 56, renta: 28100 },
+            "Girona": { mayores65: 118000, poblacionTotal: 795086, densidad: 134, renta: 28600 },
+            "Córdoba": { mayores65: 138000, poblacionTotal: 781451, densidad: 57, renta: 23200 },
+            "Pontevedra": { mayores65: 168000, poblacionTotal: 942665, densidad: 212, renta: 24800 },
+            "Granada": { mayores65: 155000, poblacionTotal: 919455, densidad: 73, renta: 22900 },
+            "Toledo": { mayores65: 112000, poblacionTotal: 707179, densidad: 46, renta: 24100 },
+            "Almería": { mayores65: 115000, poblacionTotal: 727945, densidad: 83, renta: 22600 },
+            "Castellón": { mayores65: 97000, poblacionTotal: 579245, densidad: 88, renta: 25800 },
+            "Jaén": { mayores65: 112000, poblacionTotal: 631381, densidad: 47, renta: 21800 },
+            "León": { mayores65: 98000, poblacionTotal: 457696, densidad: 29, renta: 24300 },
+            "Huelva": { mayores65: 85000, poblacionTotal: 524278, densidad: 52, renta: 23400 },
+            "Lleida": { mayores65: 72000, poblacionTotal: 441461, densidad: 36, renta: 26900 },
+            "Cantabria": { mayores65: 108000, poblacionTotal: 582905, densidad: 110, renta: 27800 },
+            "Cáceres": { mayores65: 72000, poblacionTotal: 390768, densidad: 20, renta: 22100 },
+            "Badajoz": { mayores65: 115000, poblacionTotal: 672137, densidad: 31, renta: 21900 },
+            "Valladolid": { mayores65: 95000, poblacionTotal: 519546, densidad: 64, renta: 26400 },
+            "Ourense": { mayores65: 68000, poblacionTotal: 305223, densidad: 43, renta: 23700 },
+            "La Rioja": { mayores65: 58000, poblacionTotal: 316694, densidad: 63, renta: 27200 },
+            "Araba/Álava": { mayores65: 55000, poblacionTotal: 333940, densidad: 110, renta: 34500 },
+            "Navarra": { mayores65: 112000, poblacionTotal: 661197, densidad: 64, renta: 31800 },
+            "Gipuzkoa": { mayores65: 118000, poblacionTotal: 723576, densidad: 365, renta: 33900 },
+            "Burgos": { mayores65: 65000, poblacionTotal: 356958, densidad: 25, renta: 26800 },
+            "Albacete": { mayores65: 68000, poblacionTotal: 388167, densidad: 26, renta: 23300 },
+            "Ciudad Real": { mayores65: 85000, poblacionTotal: 496137, densidad: 26, renta: 22700 },
+            "Huesca": { mayores65: 42000, poblacionTotal: 220461, densidad: 14, renta: 25600 },
+            "Salamanca": { mayores65: 58000, poblacionTotal: 326934, densidad: 27, renta: 23900 },
+            "Lugo": { mayores65: 58000, poblacionTotal: 326589, densidad: 33, renta: 22800 },
+            "Teruel": { mayores65: 28000, poblacionTotal: 133812, densidad: 9, renta: 23500 },
+            "Cuenca": { mayores65: 35000, poblacionTotal: 196329, densidad: 11, renta: 22400 },
+            "Zamora": { mayores65: 42000, poblacionTotal: 168720, densidad: 16, renta: 22900 },
+            "Ávila": { mayores65: 32000, poblacionTotal: 156720, densidad: 19, renta: 23100 },
+            "Guadalajara": { mayores65: 42000, poblacionTotal: 259111, densidad: 21, renta: 26300 },
+            "Palencia": { mayores65: 32000, poblacionTotal: 159066, densidad: 19, renta: 24600 },
+            "Segovia": { mayores65: 28000, poblacionTotal: 153129, densidad: 22, renta: 25200 },
+            "Soria": { mayores65: 22000, poblacionTotal: 88636, densidad: 9, renta: 24100 }
+        };
+
+        const width = 1600;
+        const height = 800;
+        
+        const svg = d3.select("#map")
+            .attr("width", width)
+            .attr("height", height);
+        
+        const g = svg.append("g");
+        const tooltip = d3.select(".tooltip");
+        
+        let currentData = "mayores65";
+        let transform = d3.zoomIdentity;
+        
+        function getColorScale(data) {
+            const values = Object.values(provinciasDatos).map(d => d[data]);
+            return d3.scaleSequential()
+                .domain([d3.min(values), d3.max(values)])
+                .interpolator(d3.interpolateYlOrRd);
+        }
+        
+        let colorScale = getColorScale(currentData);
+        
+        // Configurar zoom
+        const zoom = d3.zoom()
+            .scaleExtent([1, 8])
+            .on("zoom", (event) => {
+                transform = event.transform;
+                g.attr("transform", transform);
+            });
+        
+        svg.call(zoom);
+        
+        // Botones de zoom
+        d3.select("#zoom-in").on("click", () => {
+            svg.transition().call(zoom.scaleBy, 1.5);
+        });
+        
+        d3.select("#zoom-out").on("click", () => {
+            svg.transition().call(zoom.scaleBy, 0.67);
+        });
+        
+        d3.select("#zoom-reset").on("click", () => {
+            svg.transition().call(zoom.transform, d3.zoomIdentity);
+        });
+        
+        // Cargar GeoJSON de provincias españolas
+        const geojsonUrl = "https://raw.githubusercontent.com/codeforgermany/click_that_hood/main/public/data/spain-provinces.geojson";
+        
+        d3.json(geojsonUrl).then(data => {
+            d3.select(".loading").remove();
+            
+            const projection = d3.geoMercator()
+                .fitSize([width, height], data);
+            
+            const path = d3.geoPath().projection(projection);
+            
+            // Agrupar provincias por CCAA
+            const ccaaGroups = d3.group(data.features, d => d.properties.name);
+            
+            // Dibujar provincias
+            g.selectAll(".province")
+                .data(data.features)
+                .enter()
+                .append("path")
+                .attr("class", "province")
+                .attr("d", path)
+                .attr("fill", d => {
+                    const name = d.properties.name;
+                    if (provinciasDatos[name]) {
+                        return colorScale(provinciasDatos[name][currentData]);
+                    }
+                    return "#ddd";
+                })
+                .on("mouseover", function(event, d) {
+                    const name = d.properties.name;
+                    if (provinciasDatos[name]) {
+                        const data = provinciasDatos[name];
+                        const labels = {
+                            mayores65: "Mayores de 65",
+                            poblacionTotal: "Población total",
+                            densidad: "Densidad",
+                            renta: "Renta media"
+                        };
+                        const units = {
+                            mayores65: " personas",
+                            poblacionTotal: " habitantes",
+                            densidad: " hab/km²",
+                            renta: " €"
+                        };
+                        
+                        tooltip.html(`
+                            <div class="tooltip-title">${name}</div>
+                            <div>${labels[currentData]}:</div>
+                            <div class="tooltip-value">${data[currentData].toLocaleString()}${units[currentData]}</div>
+                        `);
+                        tooltip.classed("visible", true);
+                    }
+                })
+                .on("mousemove", function(event) {
+                    tooltip
+                        .style("left", (event.pageX + 15) + "px")
+                        .style("top", (event.pageY - 15) + "px");
+                })
+                .on("mouseout", function() {
+                    tooltip.classed("visible", false);
+                });
+            
+            updateLegend();
+        }).catch(error => {
+            console.error("Error cargando GeoJSON:", error);
+            d3.select(".loading").text("Error al cargar el mapa. Por favor, recarga la página.");
+        });
+        
+        function updateMap() {
+            colorScale = getColorScale(currentData);
+            
+            g.selectAll(".province")
+                .transition()
+                .duration(500)
+                .attr("fill", function(d) {
+                    const name = d.properties.name;
+                    if (provinciasDatos[name]) {
+                        return colorScale(provinciasDatos[name][currentData]);
+                    }
+                    return "#ddd";
+                });
+            
+            updateLegend();
+        }
+        
+        function updateLegend() {
+            const values = Object.values(provinciasDatos).map(d => d[currentData]);
+            const min = d3.min(values);
+            const max = d3.max(values);
+            const range = max - min;
+            
+            const legendSteps = [
+                { value: min, label: min.toLocaleString() },
+                { value: min + range * 0.33, label: Math.round(min + range * 0.33).toLocaleString() },
+                { value: min + range * 0.66, label: Math.round(min + range * 0.66).toLocaleString() },
+                { value: max, label: max.toLocaleString() }
+            ];
+            
+            const legendContent = d3.select("#legend-content");
+            legendContent.selectAll("*").remove();
+            
+            legendSteps.forEach(step => {
+                const item = legendContent.append("div").attr("class", "legend-item");
+                item.append("div")
+                    .attr("class", "legend-color")
+                    .style("background-color", colorScale(step.value));
+                item.append("span").text(step.label);
+            });
+        }
+        
+        d3.select("#dataSelector").on("change", function() {
+            currentData = this.value;
+            updateMap();
+        });
+    </script>
+</body>
+</html>
